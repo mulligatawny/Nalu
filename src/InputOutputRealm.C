@@ -42,20 +42,20 @@ InputOutputRealm::InputOutputRealm(Realms& realms, const YAML::Node & node)
 {
   // nothing now
 }
-  
+
 //--------------------------------------------------------------------------
 //-------- destructor ------------------------------------------------------
 //--------------------------------------------------------------------------
 InputOutputRealm::~InputOutputRealm()
 {
-  for ( size_t k = 0; k < inputOutputFieldInfo_.size(); ++k ) 
+  for ( size_t k = 0; k < inputOutputFieldInfo_.size(); ++k )
     delete inputOutputFieldInfo_[k];
 }
- 
+
 //--------------------------------------------------------------------------
 //-------- initialize ------------------------------------------------------
 //--------------------------------------------------------------------------
-void 
+void
 InputOutputRealm::initialize()
 {
   // bare minimum to register fields and to extract from possible mesh file
@@ -71,21 +71,21 @@ InputOutputRealm::initialize()
 //--------------------------------------------------------------------------
 //-------- register_io_fields ------------------------------------------------------
 //--------------------------------------------------------------------------
-void 
+void
 InputOutputRealm::register_io_fields() {
   // register fields; extract vector of field/part; only nodal for now
-  std::string velocityName = "velocity"; 
+  std::string velocityName = "velocity";
   for ( size_t k = 0; k < inputOutputFieldInfo_.size(); ++ k ) {
     const std::string fieldName = inputOutputFieldInfo_[k]->fieldName_;
     const int fieldSize = inputOutputFieldInfo_[k]->fieldSize_;
     const std::string fieldType = inputOutputFieldInfo_[k]->fieldType_;
     std::vector<std::string> targetNames = inputOutputFieldInfo_[k]->targetNames_;
-    
+
     // sanity check on the type
     if ( fieldType != "node_rank" ) {
       throw std::runtime_error("Input/output realm only supports nodal_rank types");
     }
-      
+
     // loop over target parts and declare/put the field
     for ( size_t j = 0; j < targetNames.size(); ++j ) {
       const std::string targetName = targetNames[j];
@@ -93,13 +93,13 @@ InputOutputRealm::register_io_fields() {
       if ( NULL == targetPart ) {
         throw std::runtime_error("Sorry, no part name found by the name: " + targetName + " for field: " + fieldName);
       }
-      else { 
+      else {
         if ( fieldName.find(velocityName) != std::string::npos ) { //FIXME: require FieldType?
           VectorFieldType *velocity = &(metaData_->declare_field<VectorFieldType>(stk::topology::NODE_RANK, fieldName));
           stk::mesh::put_field_on_mesh(*velocity, *targetPart, fieldSize, nullptr);
         }
         else {
-          stk::mesh::Field<double, stk::mesh::SimpleArrayTag> *theField 
+          stk::mesh::Field<double, stk::mesh::SimpleArrayTag> *theField
             = &(metaData_->declare_field< stk::mesh::Field<double, stk::mesh::SimpleArrayTag> >(stk::topology::NODE_RANK, fieldName));
           stk::mesh::put_field_on_mesh(*theField,*targetPart,fieldSize, nullptr);
         }
@@ -111,7 +111,7 @@ InputOutputRealm::register_io_fields() {
 //--------------------------------------------------------------------------
 //-------- load ------------------------------------------------------------
 //--------------------------------------------------------------------------
-void 
+void
 InputOutputRealm::load(const YAML::Node & node)
 {
   // call base class
@@ -119,28 +119,28 @@ InputOutputRealm::load(const YAML::Node & node)
 
   // now proceed with specific line commands to IO Realm
   const YAML::Node y_field = node["field_registration"];
-  if (y_field) {    
-    
+  if (y_field) {
+
     // extract the sequence of types
     const YAML::Node y_specs = expect_sequence(y_field, "specifications", false);
     if (y_specs) {
       for (size_t ispec = 0; ispec < y_specs.size(); ++ispec) {
         const YAML::Node y_spec = y_specs[ispec] ;
-        
+
         // find the name, size and type
         const YAML::Node fieldNameNode = y_spec["field_name"];
         const YAML::Node fieldSizeNode = y_spec["field_size"];
         const YAML::Node fieldTypeNode = y_spec["field_type"];
-        
-        if ( ! fieldNameNode ) 
+
+        if ( ! fieldNameNode )
           throw std::runtime_error("Sorry, field name must be provided");
-        
-        if ( ! fieldSizeNode ) 
+
+        if ( ! fieldSizeNode )
           throw std::runtime_error("Sorry, field size must be provided");
-        
-        if ( ! fieldTypeNode ) 
+
+        if ( ! fieldTypeNode )
           throw std::runtime_error("Sorry, field type must be provided");
-        
+
         // new the data
         InputOutputInfo *theInfo = new InputOutputInfo();
 
@@ -148,7 +148,7 @@ InputOutputRealm::load(const YAML::Node & node)
         theInfo->fieldName_ = fieldNameNode.as<std::string>() ;
         theInfo->fieldSize_ = fieldSizeNode.as<int>() ;
         theInfo->fieldType_ = fieldTypeNode.as<std::string>() ;
-        
+
         const YAML::Node &targets = y_spec["target_name"];
         if (targets.Type() == YAML::NodeType::Scalar) {
           theInfo->targetNames_.resize(1);
@@ -160,7 +160,7 @@ InputOutputRealm::load(const YAML::Node & node)
             theInfo->targetNames_[i] = targets[i].as<std::string>() ;
           }
         }
-        
+
         inputOutputFieldInfo_.push_back(theInfo);
       }
     }
@@ -199,6 +199,93 @@ InputOutputRealm::populate_external_variables_from_input(
                                    << foundTime << " for Realm: " << name() << std::endl;
   }
 }
+
+//--------------------------------------------------------------------------
+//-------- compute_minimum_distance_to_wall  -------------------------------
+//--------------------------------------------------------------------------
+void ShearStressTransportEquationSystem::compute_wall_distance() {
+
+    const YAML::Node& wdist;
+    auto fluid_partnames = wdist["fluid_parts"].as<std::vector<std::string>>();
+    auto wall_partnames = wdist["wall_parts"].as<std::vector<std::string>>();
+
+    if(wdist["wall_dist_name"]) {
+        wall_dist_name_ = wdist["wall_dist_name"].as<std::string>();
+    }
+
+    fluid_parts_.resize(fluid_partnames.size());
+    wall_parts_.resize(wall_partnames.size());
+
+    for(size_t i=0; i<fluid_partnames.size(); i++) {
+        stk::mesh::Part* part = meta_data.get_part(fluid_partnames[i]);
+        fluid_parts_[i] = part;
+    }
+
+    for(size_t i=0; i<wall_partnames.size(); i++) {
+        stk::mesh::Part* part = meta_data.get_part(wall_partnames[i]);
+        wall_parts_[i] = part;
+    }
+
+    // Mesh meta and bulk data
+    stk::mesh::BulkData & bulk_data = realm_.bulk_data();
+    stk::mesh::MetaData & meta_data = realm_.meta_data();
+
+    const unsigned nDim = meta_data.spatial_dimension();
+
+    // Register fields and put on part
+    VectorFieldType* coords = meta_data.get_field<VectorFieldType>(
+            stk::topology::NODE_RANK, "coordinates");
+
+    ScalarFieldType& ndtw = meta_data.declare_field<ScalarFieldType>(
+            stk::topology::NODE_RANK, wall_dist_name_);
+
+
+    for(auto part: fluid_parts_) {
+        stk::mesh::put_field_on_mesh(*coords, *part, nDim, nullptr);
+        stk::mesh::put_field_on_mesh(ndtw, *part, nullptr);
+    }
+
+    stk::mesh::Selector fluid_union = stk::mesh::selectUnion(fluid_parts_);
+    stk::mesh::Selector wall_union = stk::mesh::selectUnion(wall_parts_);
+
+    const stk::mesh::BucketVector& fluid_bkts = bulk_data.get_buckets(
+            stk::topology::NODE_RANK, fluid_union);
+    const stk::mesh::BucketVector& wall_bkts = bulk_data.get_buckets(
+            stk::topology::NODE_RANK, wall_union);
+
+    VectorFieldType* coords = meta_data.get_field<VectorFieldType>(
+            stk::topology::NODE_RANK, "coordinates");
+    ScalarFieldType* ndtw = meta_data.get_field<ScalarFieldType>(
+            stk::topology::NODE_RANK, wall_dist_name_);
+
+
+    // loop to compute ndtw
+    for(size_t ib=0; ib < fluid_bkts.size(); ib++) {
+        stk::mesh::Bucket& fbkt = *fluid_bkts[ib];
+        double* xyz = stk::mesh::field_data(*coords, fbkt);
+        double* wdist = stk::mesh::field_data(*ndtw, fbkt);
+
+        for(size_t in=0; in < fbkt.size(); in++) {
+            double min_dist = 1.0e16;
+            for(size_t jb=0; jb < wall_bkts.size(); jb++) {
+                stk::mesh::Bucket& wbkt = *wall_bkts[jb];
+                double* wxyz = stk::mesh::field_data(*coords, wbkt);
+
+                for(size_t jn=0; jn< wbkt.size(); jn++) {
+                    double dist_calc = 0.0;
+                    for(int j=0; j<nDim; j++) {
+                        double dst = xyz[in*nDim+j] - wxyz[jn*nDim+j];
+                        dist_calc += dst * dst;
+                    }
+                    if (dist_calc < min_dist) min_dist = dist_calc;
+                }
+            }
+            wdist[in] = std::sqrt(min_dist);
+        }
+    }
+}
+
+
 
 } // namespace nalu
 } // namespace Sierra
