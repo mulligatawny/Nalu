@@ -548,9 +548,8 @@ ShearStressTransportEquationSystem::compute_f_one_blending()
 //--------------------------------------------------------------------------
 //-------- compute_minimum_distance_to_wall  -------------------------------
 //--------------------------------------------------------------------------
-void ShearStressTransportEquationSystem::compute_wall_distance() {
+void ShearStressTransportEquationSystem::compute_wall_distance(const YAML::Node& wdist) {
 
-  const YAML::Node& wdist;
   auto fluid_partnames = wdist["fluid_parts"].as<std::vector<std::string>>();
   auto wall_partnames = wdist["wall_parts"].as<std::vector<std::string>>();
 
