@@ -258,8 +258,8 @@ void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
     const stk::mesh::BucketVector& wall_bkts = bulk_data.get_buckets(
             stk::topology::NODE_RANK, wall_union);
 
-    VectorFieldType* coords = meta_data.get_field<VectorFieldType>(
-            stk::topology::NODE_RANK, "coordinates");
+    //VectorFieldType* coords = meta_data.get_field<VectorFieldType>(
+     //       stk::topology::NODE_RANK, "coordinates");
     ScalarFieldType* ndtw = meta_data.get_field<ScalarFieldType>(
             stk::topology::NODE_RANK, wall_dist_name_);
 
