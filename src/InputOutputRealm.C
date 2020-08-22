@@ -230,10 +230,10 @@ void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
     }
 
     // Mesh meta and bulk data
-    // stk::mesh::BulkData & bulk_data = realm_.bulk_data();
-    // stk::mesh::MetaData & meta_data = realm_.meta_data();
+    stk::mesh::BulkData & bulk_data = realms.bulk_data();
+    stk::mesh::MetaData & meta_data = realms.meta_data();
     //stk::mesh::MetaData& meta_data;
-    // stk::mesh::BulkData& bulk_data;
+    //stk::mesh::BulkData& bulk_data;
 
     const unsigned nDim = meta_data.spatial_dimension();
 
