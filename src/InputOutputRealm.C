@@ -203,9 +203,8 @@ InputOutputRealm::populate_external_variables_from_input(
 //--------------------------------------------------------------------------
 //-------- compute_minimum_distance_to_wall  -------------------------------
 //--------------------------------------------------------------------------
-void InputOutputRealm::compute_wall_distance() {
+void InputOutputRealm::compute_wall_distance(YAML::Node& wdist) {
 
-    const YAML::Node& wdist;
     auto fluid_partnames = wdist["fluid_parts"].as<std::vector<std::string>>();
     auto wall_partnames = wdist["wall_parts"].as<std::vector<std::string>>();
 
