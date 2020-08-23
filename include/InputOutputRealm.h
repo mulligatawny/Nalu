@@ -44,7 +44,7 @@ class InputOutputRealm : public Realm
 {  
 public:
 
-  InputOutputRealm(Realms&, const YAML::Node & node);
+  InputOutputRealm(Realm&, Realms&, const YAML::Node & node);
   ~InputOutputRealm();
 
   typedef size_t SizeType;

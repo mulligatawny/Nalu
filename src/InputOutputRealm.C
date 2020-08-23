@@ -9,8 +9,6 @@
 #include "InputOutputRealm.h"
 #include "Realm.h"
 #include "SolutionOptions.h"
-#include "Algorithm.h"
-#include "AlgorithmDriver.h"
 
 // transfer
 #include "xfer/Transfer.h"
@@ -39,7 +37,7 @@ namespace nalu{
 //--------------------------------------------------------------------------
 //-------- constructor -----------------------------------------------------
 //--------------------------------------------------------------------------
-InputOutputRealm::InputOutputRealm(Realms& realms, const YAML::Node & node)
+InputOutputRealm::InputOutputRealm(Realm &realm,Realms& realms, const YAML::Node & node)
   : Realm(realms, node)
 {
   // nothing now
