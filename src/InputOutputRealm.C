@@ -220,7 +220,7 @@ void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
 
     fluid_parts_.resize(fluid_partnames.size());
     wall_parts_.resize(wall_partnames.size());
-
+    realm_ = realm;
     stk::mesh::MetaData& meta_data = realm_.meta_data();
     stk::mesh::BulkData& bulk_data = realm_.bulk_data();
 
