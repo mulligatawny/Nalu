@@ -258,7 +258,7 @@ void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
     for(size_t ib=0; ib < fluid_bkts.size(); ib++) {
         stk::mesh::Bucket& fbkt = *fluid_bkts[ib];
         double* xyz = stk::mesh::field_data(*coords, fbkt);
-        double* wdist = stk::mesh::field_data(*ndtw, fbkt);
+        double* wdist = stk::mesh::field_data(ndtw, fbkt);
 
         for(size_t in=0; in < fbkt.size(); in++) {
             double min_dist = 1.0e16;
