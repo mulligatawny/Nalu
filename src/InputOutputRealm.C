@@ -238,13 +238,13 @@ void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
     VectorFieldType* coords = meta_data.get_field<VectorFieldType>(
             stk::topology::NODE_RANK, "coordinates");
 
-    ScalarFieldType* ndtw = meta_data.declare_field<ScalarFieldType>(
-            stk::topology::NODE_RANK, "wall_dist_name_");
+    ScalarFieldType& ndtw = meta_data.declare_field<ScalarFieldType>(
+            stk::topology::NODE_RANK, wall_dist_name_);
 
 
     for(auto part: fluid_parts_) {
         stk::mesh::put_field_on_mesh(*coords, *part, nDim, nullptr);
-        stk::mesh::put_field_on_mesh(*ndtw, *part, nullptr);
+        stk::mesh::put_field_on_mesh(ndtw, *part, nullptr);
     }
 
     stk::mesh::Selector fluid_union = stk::mesh::selectUnion(fluid_parts_);
