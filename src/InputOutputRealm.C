@@ -231,11 +231,6 @@ void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
         wall_parts_[i] = part;
     }
 
-    // Mesh meta and bulk data
-    //stk::mesh::BulkData & bulk_data = realms.bulk_data();
-    //stk::mesh::MetaData & meta_data = realms.meta_data();
-
-
     const unsigned nDim = meta_data.spatial_dimension();
 
     // Register fields and put on part
@@ -259,10 +254,10 @@ void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
     const stk::mesh::BucketVector& wall_bkts = bulk_data.get_buckets(
             stk::topology::NODE_RANK, wall_union);
 
-    //VectorFieldType* coords = meta_data.get_field<VectorFieldType>(
-           // stk::topology::NODE_RANK, "coordinates");
-    //ScalarFieldType* ndtw = meta_data.get_field<ScalarFieldType>(
-          //  stk::topology::NODE_RANK, wall_dist_name_);
+    VectorFieldType* coords = meta_data.get_field<VectorFieldType>(
+            stk::topology::NODE_RANK, "coordinates");
+    ScalarFieldType* ndtw = meta_data.get_field<ScalarFieldType>(
+            stk::topology::NODE_RANK, wall_dist_name_);
 
 
     // loop to compute ndtw
