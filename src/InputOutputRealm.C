@@ -37,7 +37,7 @@ namespace nalu{
 //--------------------------------------------------------------------------
 //-------- constructor -----------------------------------------------------
 //--------------------------------------------------------------------------
-InputOutputRealm::InputOutputRealm(Realm &realm,Realms& realms, const YAML::Node & node)
+InputOutputRealm::InputOutputRealm(Realms& realms, const YAML::Node & node)
   : Realm(realms, node)
 {
   // nothing now
