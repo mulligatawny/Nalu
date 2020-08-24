@@ -219,8 +219,8 @@ void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
     fluid_parts_.resize(fluid_partnames.size());
     wall_parts_.resize(wall_partnames.size());
 
-    stk::mesh::MetaData& meta_data = meta_data();
-    stk::mesh::BulkData& bulk_data = bulk_data();
+    stk::mesh::MetaData& meta_data = this->meta_data();
+    stk::mesh::BulkData& bulk_data = this->bulk_data();
 
     for(size_t i=0; i<fluid_partnames.size(); i++) {
         stk::mesh::Part* part = meta_data.get_part(fluid_partnames[i]);
