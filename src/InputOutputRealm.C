@@ -234,6 +234,8 @@ void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
 
     const unsigned nDim = meta_data.spatial_dimension();
 
+    VectorFieldType* coords = meta_data.get_field<VectorFieldType>(stk::topology::NODE_RANK, "coordinates");
+    ScalarFieldType* ndtw = meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, wall_dist_name_);
     // Register fields and put on part
     VectorFieldType* coords = meta_data.get_field<VectorFieldType>(stk::topology::NODE_RANK, "coordinates");
     ScalarFieldType& ndtw = meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, wall_dist_name_);
@@ -254,6 +256,8 @@ void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
     //VectorFieldType* coords = meta_data.get_field<VectorFieldType>(stk::topology::NODE_RANK, "coordinates");
     //ScalarFieldType* ndtw = meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, wall_dist_name_);
 
+    VectorFieldType* coords = meta_data.get_field<VectorFieldType>(stk::topology::NODE_RANK, "coordinates");
+    ScalarFieldType& ndtw = meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, wall_dist_name_);
 
     // loop to compute ndtw
     for(size_t ib=0; ib < fluid_bkts.size(); ib++) {
