@@ -218,8 +218,8 @@ void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
 
     fluid_parts_.resize(fluid_partnames.size());
     wall_parts_.resize(wall_partnames.size());
-    //stk::mesh::MetaData& meta_data = realm_.meta_data();
-    //stk::mesh::BulkData& bulk_data = realm_.bulk_data();
+    stk::mesh::MetaData& meta_data = realm_.meta_data();
+    stk::mesh::BulkData& bulk_data = realm_.bulk_data();
 
     for(size_t i=0; i<fluid_partnames.size(); i++) {
         stk::mesh::Part* part = meta_data.get_part(fluid_partnames[i]);
@@ -259,8 +259,8 @@ void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
     const stk::mesh::BucketVector& wall_bkts = bulk_data.get_buckets(
             stk::topology::NODE_RANK, wall_union);
 
-    //VectorFieldType* coords = meta_data.get_field<VectorFieldType>(
-     //       stk::topology::NODE_RANK, "coordinates");
+    VectorFieldType* coords = meta_data.get_field<VectorFieldType>(
+            stk::topology::NODE_RANK, "coordinates");
     ScalarFieldType* ndtw = meta_data.get_field<ScalarFieldType>(
             stk::topology::NODE_RANK, wall_dist_name_);
 
