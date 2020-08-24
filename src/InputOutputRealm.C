@@ -244,7 +244,7 @@ void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
 
     for(auto part: fluid_parts_) {
         stk::mesh::put_field_on_mesh(*coords, *part, nDim, nullptr);
-        stk::mesh::put_field_on_mesh(ndtw, *part, nullptr);
+        stk::mesh::put_field_on_mesh(*ndtw, *part, nullptr);
     }
 
     stk::mesh::Selector fluid_union = stk::mesh::selectUnion(fluid_parts_);
