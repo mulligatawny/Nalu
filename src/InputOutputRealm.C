@@ -66,7 +66,7 @@ InputOutputRealm::initialize()
   create_output_mesh();
   input_variables_from_mesh();
   initialize_post_processing_algorithms();
-  compute_wall_distance(const YAML::Node& node);
+  compute_wall_distance(YAML::Node& node);
 }
 
 //--------------------------------------------------------------------------
