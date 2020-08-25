@@ -66,6 +66,7 @@ InputOutputRealm::initialize()
   create_output_mesh();
   input_variables_from_mesh();
   initialize_post_processing_algorithms();
+  compute_wall_distance(const YAML::Node& node);
 }
 
 //--------------------------------------------------------------------------
@@ -250,9 +251,6 @@ void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
             stk::topology::NODE_RANK, fluid_union);
     const stk::mesh::BucketVector& wall_bkts = bulk_data.get_buckets(
             stk::topology::NODE_RANK, wall_union);
-
-    //VectorFieldType* coords = meta_data.get_field<VectorFieldType>(stk::topology::NODE_RANK, "coordinates");
-    //ScalarFieldType* ndtw = meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, wall_dist_name_);
 
     // loop to compute ndtw
     for(size_t ib=0; ib < fluid_bkts.size(); ib++) {
