@@ -66,7 +66,7 @@ InputOutputRealm::initialize()
   create_output_mesh();
   input_variables_from_mesh();
   initialize_post_processing_algorithms();
-  compute_wall_distance(YAML::Node& node);
+  compute_wall_distance();
 }
 
 //--------------------------------------------------------------------------
@@ -204,8 +204,8 @@ InputOutputRealm::populate_external_variables_from_input(
 //--------------------------------------------------------------------------
 //-------- compute_minimum_distance_to_wall  -------------------------------
 //--------------------------------------------------------------------------
-void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
-
+void InputOutputRealm::compute_wall_distance() {
+    const YAML::Node& wdist;
     stk::mesh::PartVector fluid_parts_;
     stk::mesh::PartVector wall_parts_;
     std::string wall_dist_name_ = "NULL";

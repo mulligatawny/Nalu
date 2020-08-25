@@ -69,7 +69,7 @@ public:
   void advance_time_step() {}
   double populate_restart( double &timeStepNm1, int &timeStepCount);
   void populate_external_variables_from_input(const double currentTime);
-  void compute_wall_distance(const YAML::Node& node);
+  void compute_wall_distance();
   // internal calls
   void register_io_fields();
 
