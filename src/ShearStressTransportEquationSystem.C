@@ -279,7 +279,6 @@ ShearStressTransportEquationSystem::initial_work()
       }
     }
   }
-  compute_wall_distance();
 }
 
 //--------------------------------------------------------------------------
