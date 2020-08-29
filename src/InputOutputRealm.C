@@ -234,7 +234,7 @@ void InputOutputRealm::compute_wall_distance() {
     //}
 
     stk::mesh::Part* fluid_parts_ = meta_data.get_part("fluid-HEX");
-    stk::mesh::Part* wall_parts_ = meta_data.get_part("surface1");
+    stk::mesh::Part* wall_parts_ = meta_data.get_part("bottom");
 
     const unsigned nDim = meta_data.spatial_dimension();
 
