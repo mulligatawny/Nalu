@@ -243,8 +243,8 @@ void InputOutputRealm::compute_wall_distance() {
     ScalarFieldType* ndtw = &(meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, wall_dist_name_));
 
     //for(auto part: fluid_parts_) {
-        stk::mesh::put_field_on_mesh(*coords, *part, nDim, nullptr);
-        stk::mesh::put_field_on_mesh(*ndtw, *part, nullptr);
+    stk::mesh::put_field_on_mesh(*coords, *fluid_parts_, nDim, nullptr);
+    stk::mesh::put_field_on_mesh(*ndtw, *fluid_parts_, nullptr);
     //}
 
     stk::mesh::Selector fluid_union = stk::mesh::selectUnion(fluid_parts_);
