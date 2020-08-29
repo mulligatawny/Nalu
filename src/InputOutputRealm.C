@@ -207,7 +207,7 @@ InputOutputRealm::populate_external_variables_from_input(
 void InputOutputRealm::compute_wall_distance() {
 
     //stk::mesh::PartVector fluid_parts_;
-    stk::mesh::PartVector wall_parts_;
+    //stk::mesh::PartVector wall_parts_;
     std::string wall_dist_name_ = "minimum_distance_to_wall";
 
     //auto fluid_partnames = wdist["fluid_parts"].as<std::vector<std::string>>();
