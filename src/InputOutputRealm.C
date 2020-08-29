@@ -222,7 +222,6 @@ void InputOutputRealm::compute_wall_distance() {
 
     stk::mesh::MetaData& meta_data = this->meta_data();
     stk::mesh::BulkData& bulk_data = this->bulk_data();
-    stk::mesh::MetaData::enable_late_fields();
     //for(size_t i=0; i<fluid_partnames.size(); i++) {
     //    stk::mesh::Part* part = meta_data.get_part(fluid_partnames[i]);
     //    fluid_parts_[i] = part;
