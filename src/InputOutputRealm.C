@@ -247,13 +247,18 @@ void InputOutputRealm::compute_wall_distance() {
     stk::mesh::put_field_on_mesh(*ndtw, *fluid_parts_, nullptr);
     //}
 
-    stk::mesh::Selector fluid_union = stk::mesh::selectUnion(fluid_parts_);
-    stk::mesh::Selector wall_union = stk::mesh::selectUnion(wall_parts_);
+    //stk::mesh::Selector fluid_union = stk::mesh::selectUnion(fluid_parts_);
+    //stk::mesh::Selector wall_union = stk::mesh::selectUnion(wall_parts_);
 
-    const stk::mesh::BucketVector& fluid_bkts = bulk_data.get_buckets(
-            stk::topology::NODE_RANK, fluid_union);
-    const stk::mesh::BucketVector& wall_bkts = bulk_data.get_buckets(
-            stk::topology::NODE_RANK, wall_union);
+    //const stk::mesh::BucketVector& fluid_bkts = bulk_data.get_buckets(
+    //        stk::topology::NODE_RANK, fluid_union);
+    //const stk::mesh::BucketVector& wall_bkts = bulk_data.get_buckets(
+    //        stk::topology::NODE_RANK, wall_union);
+
+        const stk::mesh::BucketVector& fluid_bkts = bulk_data.get_buckets(
+                stk::topology::NODE_RANK, *fluid_parts_);
+        const stk::mesh::BucketVector& wall_bkts = bulk_data.get_buckets(
+                stk::topology::NODE_RANK, *wall_parts_);
 
     // loop to compute ndtw
     for(size_t ib=0; ib < fluid_bkts.size(); ib++) {
