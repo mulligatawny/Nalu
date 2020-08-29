@@ -66,7 +66,7 @@ InputOutputRealm::initialize()
   create_output_mesh();
   input_variables_from_mesh();
   initialize_post_processing_algorithms();
-  //compute_wall_distance();
+  compute_wall_distance();
 }
 
 //--------------------------------------------------------------------------
@@ -204,34 +204,37 @@ InputOutputRealm::populate_external_variables_from_input(
 //--------------------------------------------------------------------------
 //-------- compute_minimum_distance_to_wall  -------------------------------
 //--------------------------------------------------------------------------
-void InputOutputRealm::compute_wall_distance(const YAML::Node& wdist) {
+void InputOutputRealm::compute_wall_distance() {
 
     stk::mesh::PartVector fluid_parts_;
     stk::mesh::PartVector wall_parts_;
-    std::string wall_dist_name_ = "NULL";
+    std::string wall_dist_name_ = "minimum_distance_to_wall";
 
-    auto fluid_partnames = wdist["fluid_parts"].as<std::vector<std::string>>();
-    auto wall_partnames = wdist["wall_parts"].as<std::vector<std::string>>();
+    //auto fluid_partnames = wdist["fluid_parts"].as<std::vector<std::string>>();
+    //auto wall_partnames = wdist["wall_parts"].as<std::vector<std::string>>();
 
-    if(wdist["wall_dist_name"]) {
-        wall_dist_name_ = wdist["wall_dist_name"].as<std::string>();
-    }
+    //if(wdist["wall_dist_name"]) {
+    //    wall_dist_name_ = wdist["wall_dist_name"].as<std::string>();
+    //}
 
-    fluid_parts_.resize(fluid_partnames.size());
-    wall_parts_.resize(wall_partnames.size());
+    //fluid_parts_.resize(fluid_partnames.size());
+    //wall_parts_.resize(wall_partnames.size());
 
     stk::mesh::MetaData& meta_data = this->meta_data();
     stk::mesh::BulkData& bulk_data = this->bulk_data();
 
-    for(size_t i=0; i<fluid_partnames.size(); i++) {
-        stk::mesh::Part* part = meta_data.get_part(fluid_partnames[i]);
-        fluid_parts_[i] = part;
-    }
+    //for(size_t i=0; i<fluid_partnames.size(); i++) {
+    //    stk::mesh::Part* part = meta_data.get_part(fluid_partnames[i]);
+    //    fluid_parts_[i] = part;
+    //}
 
-    for(size_t i=0; i<wall_partnames.size(); i++) {
-        stk::mesh::Part* part = meta_data.get_part(wall_partnames[i]);
-        wall_parts_[i] = part;
-    }
+    //for(size_t i=0; i<wall_partnames.size(); i++) {
+    //    stk::mesh::Part* part = meta_data.get_part(wall_partnames[i]);
+    //    wall_parts_[i] = part;
+    //}
+
+    stk::mesh::Part* fluid_parts_ = meta_data.get_part(fluid-HEX);
+    stk::mesh::Part* wall_parts_ = meta_data.get_part(surface1, surface2, surface3);
 
     const unsigned nDim = meta_data.spatial_dimension();
 

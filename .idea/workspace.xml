@@ -39,7 +39,7 @@
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-    <property name="settings.editor.selected.configurable" value="reference.settingsdialog.IDE.editor.colors" />
+    <property name="settings.editor.selected.configurable" value="preferences.sourceCode.C/C++" />
   </component>
   <component name="SvnConfiguration">
     <configuration />
@@ -54,7 +54,7 @@
       <workItem from="1596476962243" duration="641000" />
       <workItem from="1596820574510" duration="1711000" />
       <workItem from="1597183405177" duration="20000" />
-      <workItem from="1598028823617" duration="19529000" />
+      <workItem from="1598028823617" duration="24559000" />
     </task>
     <servers />
   </component>
@@ -62,10 +62,10 @@
     <option name="version" value="1" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="499" y="244" key="SettingsEditor" timestamp="1598028952710">
+    <state x="499" y="244" key="SettingsEditor" timestamp="1598656684868">
       <screen x="0" y="0" width="1792" height="1120" />
     </state>
-    <state x="499" y="244" key="SettingsEditor/0.0.1792.1120@0.0.1792.1120" timestamp="1598028952710" />
+    <state x="499" y="244" key="SettingsEditor/0.0.1792.1120@0.0.1792.1120" timestamp="1598656684868" />
     <state x="570" y="279" key="SettingsEditor/0.0.2048.1280@0.0.2048.1280" timestamp="1596820602641" />
   </component>
 </project>
