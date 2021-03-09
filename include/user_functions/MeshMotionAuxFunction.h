@@ -5,24 +5,30 @@
 /*  directory structure                                                   */
 /*------------------------------------------------------------------------*/
 
-#ifndef RayleighTaylorMixFracAuxFunction_h
-#define RayleighTaylorMixFracAuxFunction_h
+#ifndef MeshMotionAuxFunction_h
+#define MeshMotionAuxFunction_h
 
 #include <AuxFunction.h>
 
+#include <string>
 #include <vector>
 
 namespace sierra{
 namespace nalu{
 
-class RayleighTaylorMixFracAuxFunction : public AuxFunction
+class Realm;
+
+class MeshMotionAuxFunction : public AuxFunction
 {
 public:
 
-  RayleighTaylorMixFracAuxFunction(
-    const std::vector<double> &theParams);
+  MeshMotionAuxFunction(
+    const unsigned beginPos,
+    const unsigned endPos,
+    std::vector<std::string> theStringParams,
+    Realm &realm);
 
-  virtual ~RayleighTaylorMixFracAuxFunction() {}
+  virtual ~MeshMotionAuxFunction();
   
   virtual void do_evaluate(
     const double * coords,
@@ -33,13 +39,15 @@ public:
     const unsigned fieldSize,
     const unsigned beginPos,
     const unsigned endPos) const;
-  
+
+  void setup(const double time);
+  void cross_product(double *c, double *u) const;
+
 private:
-  double aX_;
-  double tX_;
-  double yTr_;
-  double dTr_;
-  const double pi_;
+  std::vector<double>* omegaMM_;
+  std::vector<double>* centroidMM_;
+  std::vector<double>* velMM_;
+  std::vector<double>* dispMM_;
 };
 
 } // namespace nalu
