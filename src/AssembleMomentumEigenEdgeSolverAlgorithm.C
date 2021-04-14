@@ -490,7 +490,7 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
         //NaluEnv::self().naluOutputP0() <<"total_kk: " << total_kk << "  nu_sgs: " << nu_sgs << "  x0: " << 0.0*(D_[0][0] - D_[1][1]) + 1.0*(2.0*D_[1][1] - 2.0*D_[2][2]) + 0.5*(3.0*D_[2][2] + 1.0) << "  x1: " << 0.0*(D_[0][0] - D_[1][1]) + 0.0*(2.0*D_[1][1] - 2.0*D_[2][2]) + (sqrt(3.0)/2.0)*(3.0*D_[2][2] + 1.0) << std::endl;
 
         // perturb
-        perturb(Q_, D_,D_res);
+        perturb(Q_, D_, D_res, Q_res);
         //NaluEnv::self().naluOutputP0() << "Lambda1: " << D_[0][0] << "   Lambda2: " << D_[1][1] << "   Lambda3: " << D_[2][2] << "   Sum: " << D_[0][0] + D_[1][1] + D_[2][2] << std::endl;
 
         // form perturbed stress tensor (deviatoric term absorbed into pressure)
@@ -826,7 +826,7 @@ AssembleMomentumEigenEdgeSolverAlgorithm::sort(
 //--------------------------------------------------------------------------
 void
 AssembleMomentumEigenEdgeSolverAlgorithm::perturb(
-  double (&Q)[3][3], double (&D)[3][3], double (&P)[3][3])
+  double (&Q)[3][3], double (&D)[3][3], double (&P)[3][3], double (&R)[3][3])
 {
   // sgs stress eigenvalue perturbation
   if(realm_.solutionOptions_->momentumEigenvaluePerturb_) {
@@ -855,16 +855,16 @@ AssembleMomentumEigenEdgeSolverAlgorithm::perturb(
   if(realm_.solutionOptions_->momentumEigenvectorPerturb_) {
 
     // Original eigenvectors: v0, v1, v2
+    // For now: use permutation == 1 to align sgs tensor with resolved tensor
 
     if(eigenvectorPermutation_ == 1) {
+      //** rotate sgs tensor onto resolved tensor**********************//
+      // R is Q_res 
 
-      // Save original Q
-      //Q0_ = Q;
-
-      // Permut eigenvectors: v0, v1, v2
-      //Q[0][0] = Q0_[0][0]; Q[0][1] = Q0_[0][1]; Q[0][2] = Q0_[0][2];
-      //Q[1][0] = Q0_[1][0]; Q[1][1] = Q0_[1][1]; Q[1][2] = Q0_[1][2];
-      //Q[2][0] = Q0_[2][0]; Q[2][1] = Q0_[2][1]; Q[2][2] = Q0_[2][2];
+      // Permute eigenvectors: v0, v1, v2
+      Q[0][0] = R[0][0]; Q[0][1] = R[0][1]; Q[0][2] = R[0][2];
+      Q[1][0] = R[1][0]; Q[1][1] = R[1][1]; Q[1][2] = R[1][2];
+      Q[2][0] = R[2][0]; Q[2][1] = R[2][1]; Q[2][2] = R[2][2];
 
     } else if(eigenvectorPermutation_ == 2) {
 
