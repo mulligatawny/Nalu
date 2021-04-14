@@ -65,7 +65,7 @@ public:
   // momentum perturbation function members
   void diagonalize( const double (&A)[3][3], double (&Q)[3][3], double (&D)[3][3]);
   void sort(double (&Q)[3][3], double (&D)[3][3]);
-  void perturb(double (&Q)[3][3], double (&D)[3][3]);
+  void perturb(double (&Q)[3][3], double (&D)[3][3], double (&P)[3][3], double (&R)[3][3]);
   void form_perturbed_stress( const double (&D)[3][3], const double (&Q)[3][3], double (&A)[3][3]);
   void matrix_matrix_multiply( const double (&A)[3][3], const double (&B)[3][3], double (&C)[3][3]);
   
@@ -81,6 +81,10 @@ public:
   double total_kk;
   double resolved_kk;
   double modeled_kk;
+  double S_res[3][3];
+  double A_res[3][3];
+  double Q_res[3][3];
+  double D_res[3][3];
   const double Cw_;
 
 };
