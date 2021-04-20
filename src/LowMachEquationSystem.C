@@ -752,11 +752,15 @@ LowMachEquationSystem::solve_and_update()
   // compute effective viscosity
   momentumEqSys_->diffFluxCoeffAlgDriver_->execute();
 
+
   // start the iteration loop
   for ( int k = 0; k < maxIterations_; ++k ) {
 
     NaluEnv::self().naluOutputP0() << " " << k+1 << "/" << maxIterations_
                     << std::setw(15) << std::right << userSuppliedName_ << std::endl;
+
+    // dynamic averaging
+    momentumEqSys_->register_dynamic_averaging();
 
     // momentum assemble, load_complete and solve
     momentumEqSys_->assemble_and_solve(momentumEqSys_->uTmp_);
@@ -1058,6 +1062,21 @@ MomentumEquationSystem::register_nodal_fields(
 
   visc_ =  &(meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, "viscosity"));
   stk::mesh::put_field_on_mesh(*visc_, *part, nullptr);
+
+
+  // FIELDS FOR DYNAMIC AVERAGING
+  // ----------------------------
+
+  ScalarFieldType *filteredVolume
+    = &(meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, "filtered_volume"));
+  stk::mesh::put_field_on_mesh(*filteredVolume, *part, nullptr);
+
+  GenericFieldType *filteredStress
+    = &(meta_data.declare_field<GenericFieldType>(stk::topology::NODE_RANK, "filtered_stress"));
+  stk::mesh::put_field_on_mesh(*filteredStress, *part, nDim*nDim, nullptr);
+
+
+
 
   if ( realm_.is_turbulent() ) {
     tvisc_ =  &(meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, "turbulent_viscosity"));
@@ -2220,6 +2239,266 @@ MomentumEquationSystem::manage_projected_nodal_gradient(
   projectedNodalGradEqs_->set_data_map(OPEN_BC, "pTmp");
   projectedNodalGradEqs_->set_data_map(SYMMETRY_BC, "pTmp");
 }
+
+
+
+//--------------------------------------------------------------------------
+//-------- register_dynamic_averaging---------------------------------------
+//--------------------------------------------------------------------------
+void
+MomentumEquationSystem::register_dynamic_averaging()
+{
+  stk::mesh::MetaData & metaData = realm_.meta_data();
+  stk::mesh::BulkData &bulkData = realm_.bulk_data();
+  const int nDim = metaData.spatial_dimension(); // added as in project_nodal_veloctiy() from LMES
+
+  // get filtered volume and stress
+  ScalarFieldType *filteredVolume 
+    = metaData.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "filtered_volume");
+
+  GenericFieldType *filteredStress 
+    = metaData.get_field<GenericFieldType>(stk::topology::NODE_RANK, "filtered_stress");
+
+  // Needed for master element calculations (already registered)
+  VectorFieldType *coordinates 
+    = metaData.get_field<VectorFieldType>(stk::topology::NODE_RANK, realm_.get_coordinates_name()); 
+
+  // other fields that we need
+  ScalarFieldType *density 
+    = metaData.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "density");
+  VectorFieldType *velocity 
+    = metaData.get_field<VectorFieldType>(stk::topology::NODE_RANK, "velocity");
+
+
+  // zero fields (nodal loop over shared/owned where filtered variable was registered)
+  stk::mesh::Selector s_all_nodes
+    = stk::mesh::selectField(*filteredVolume);
+
+  stk::mesh::BucketVector const& node_buckets =
+    realm_.get_buckets( stk::topology::NODE_RANK, s_all_nodes );
+  for ( stk::mesh::BucketVector::const_iterator ib = node_buckets.begin() ;
+        ib != node_buckets.end() ; ++ib ) {
+    stk::mesh::Bucket & b = **ib ;
+    const stk::mesh::Bucket::size_type length   = b.size();
+    double * fVolume = stk::mesh::field_data(*filteredVolume, b);
+    double * fStress = stk::mesh::field_data(*filteredStress, b);
+
+    for ( stk::mesh::Bucket::size_type k = 0 ; k < length ; ++k ) {
+      // scalar
+      fVolume[k] = 0.0;
+
+
+      // tensor
+      const int kNdimNdim = k*nDim*nDim;    
+      for ( int i = 0; i < nDim*nDim; ++i ) {
+        fStress[kNdimNdim+i] = 0.0;
+      }
+
+    }
+  }
+
+
+  // master element information
+  std::vector<double> ws_dndx;
+  std::vector<double> ws_deriv;
+  std::vector<double> ws_det_j;
+  std::vector<double> ws_shape_function;
+  std::vector<double> ws_scv_volume;
+
+  // fields that map to dofs
+  std::vector<double> ws_density;
+  std::vector<double> ws_velocity;
+  std::vector<double> ws_coordinates;
+
+  // fixed size
+  std::vector<double> velocityIp(nDim);
+  std::vector<double> stressIp(nDim*nDim);
+
+  // element variables to assemble (scalars local below)
+  std::vector<double> elemVelocity(nDim);
+  std::vector<double> elemStress(nDim*nDim);
+
+  // extract locally owned elements
+  stk::mesh::Selector s_locally_owned
+    = (metaData.locally_owned_part() & !(realm_.get_inactive_selector()));
+  
+  // buckets
+  stk::mesh::BucketVector const& elem_buckets =
+    realm_.get_buckets( stk::topology::ELEMENT_RANK, s_locally_owned );
+  for ( stk::mesh::BucketVector::const_iterator ib = elem_buckets.begin();
+        ib != elem_buckets.end() ; ++ib ) {
+    stk::mesh::Bucket & b = **ib ;
+    const stk::mesh::Bucket::size_type length   = b.size();
+
+    // extract master element
+    MasterElement *meSCV = sierra::nalu::MasterElementRepo::get_volume_master_element(b.topology());
+    const int nodesPerElement = meSCV->nodesPerElement_;
+    const int numIp = meSCV->numIntPoints_;
+    
+    // resize element integration point quantities
+    ws_dndx.resize(nDim*numIp*nodesPerElement);
+    ws_deriv.resize(nDim*numIp*nodesPerElement);
+    ws_det_j.resize(numIp);
+    ws_shape_function.resize(numIp*nodesPerElement);
+    ws_scv_volume.resize(numIp);
+
+    // resize nodal-based quantities
+    ws_density.resize(nodesPerElement);
+    ws_velocity.resize(nDim*nodesPerElement);
+    ws_coordinates.resize(nDim*nodesPerElement);
+
+    // can compute shape function for all of this bucket's topology
+    meSCV->shape_fcn(&ws_shape_function[0]);
+
+    for ( stk::mesh::Bucket::size_type k = 0 ; k < length ; ++k ) {
+
+      stk::mesh::Entity const * node_rels = b.begin_nodes(k);
+      int num_nodes = b.num_nodes(k);
+
+      // sanity check on num nodes
+      ThrowAssert( num_nodes == nodesPerElement );
+
+      for ( int ni = 0; ni < num_nodes; ++ni ) {
+        stk::mesh::Entity node = node_rels[ni];
+
+        // pointers to real data
+        const double rho = *stk::mesh::field_data(*density, node);
+        const double *uNp1 = stk::mesh::field_data(*velocity, node);
+        const double *coords =  stk::mesh::field_data(*coordinates, node);
+
+        // gather scalars
+        ws_density[ni] = rho;
+
+        // gather vectors
+        const int niNdim = ni*nDim;
+        for ( int i = 0; i < nDim; ++i ) {
+          ws_velocity[niNdim+i] = uNp1[i];      // 
+          ws_coordinates[niNdim+i] = coords[i];
+        }
+      }
+
+      // compute geometry and grad-op
+      double scv_error = 0.0;
+      meSCV->determinant(1, &ws_coordinates[0], &ws_scv_volume[0], &scv_error);
+      meSCV->grad_op(1, &ws_coordinates[0], &ws_dndx[0], &ws_deriv[0], &ws_det_j[0], &scv_error);
+
+      // loop over scv ip
+      double elemVolume = 0.0;
+
+      // vector
+      for ( int i = 0; i < nDim; ++i ) {
+        elemVelocity[i] = 0.0;
+      }
+
+      // tensor
+      for ( int i = 0; i < nDim*nDim; ++i ) {
+        elemStress[i] = 0.0;
+      }
+
+      for ( int ip = 0; ip < numIp; ++ip ) {
+
+        const int ipNpe = ip*nodesPerElement;  
+
+        // zero out local ip; vector
+        for ( int i = 0; i < nDim; ++i ) {
+          velocityIp[i] = 0.0;
+        }
+
+        // zero out local ip; tensor
+        for ( int i = 0; i < nDim*nDim; ++i ) {
+          stressIp[i] = 0.0;
+        }
+
+        double rhoIp = 0.0;        
+        for ( int ic = 0; ic < nodesPerElement; ++ic ) {
+          const double r = ws_shape_function[ipNpe+ic];
+          const int offSetDnDx = nDim*ipNpe + ic*nDim;
+          for ( int i = 0; i < nDim; ++i ) {
+            const double ui = ws_velocity[ic*nDim+i];
+            velocityIp[i] += r*ui; 
+            const int iNdim = i*nDim;
+            for ( int j = 0; j < nDim; ++j ) {
+              stressIp[iNdim+j] += ui*ws_velocity[ic*nDim+j];
+            }
+          }
+        }
+
+        const double scv = ws_scv_volume[ip];
+
+        // element-averaged
+        elemVolume += scv;
+
+        // more loops
+
+        for ( int i = 0; i < nDim; ++i ) {
+          elemVelocity[i] += velocityIp[i]*scv; // DON'T REALLY NEED THIS
+          const int iNdim = i*nDim;
+          for ( int j = 0; j < nDim; ++j ) {
+            elemStress[iNdim+j] += stressIp[iNdim+j]*scv;
+          }
+        }
+
+      }
+
+      // now scatter
+      for ( int ni = 0; ni < num_nodes; ++ni ) {
+        stk::mesh::Entity node = node_rels[ni];
+        
+        // pointers to real data
+        double * fVolume = stk::mesh::field_data(*filteredVolume, node);
+        double * fStress = stk::mesh::field_data(*filteredStress, node);
+
+        *fVolume += elemVolume;
+
+        for ( int i = 0; i < nDim; ++i ) {
+          for ( int j = 0; j < nDim; ++j ) {
+            const int lStride = i*nDim+j;
+            fStress[lStride] += elemStress[lStride];
+          }
+        }
+      }
+    }
+  }
+
+  // parallel assemble
+  stk::mesh::parallel_sum(bulkData, {filteredVolume, filteredStress}); 
+
+  // assemble nodal filter
+  if ( realm_.hasPeriodic_ ) {
+    realm_.periodic_field_update(filteredVolume, 1);
+  }
+
+  // normalize by filter
+  for ( stk::mesh::BucketVector::const_iterator ib = node_buckets.begin() ;
+        ib != node_buckets.end() ; ++ib ) {
+    stk::mesh::Bucket & b = **ib ;
+    const stk::mesh::Bucket::size_type length   = b.size();
+    double * fVolume = stk::mesh::field_data(*filteredVolume, b);
+    double * fStress = stk::mesh::field_data(*filteredStress, b);
+
+  // few more lines to divide quantities by variable holding * fVolume
+    for ( stk::mesh::Bucket::size_type k = 0 ; k < length ; ++k ) {
+
+      // extract nodal filter
+      const double nodalFilter = fVolume[k];
+
+      // tensor
+      const int kNdimNdim = k*nDim*nDim;    
+      for ( int i = 0; i < nDim*nDim; ++i ) {
+        fStress[kNdimNdim+i] /= nodalFilter;
+      }
+    }
+
+  }
+
+  // periodic assemble
+  if ( realm_.hasPeriodic_) {
+    // one by one... (filter has already been completed prior to normalization)
+    realm_.periodic_field_update(filteredStress, nDim*nDim);
+  }
+
+}
+
 
 //--------------------------------------------------------------------------
 //-------- compute_projected_nodal_gradient---------------------------------

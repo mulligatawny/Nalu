@@ -48,6 +48,8 @@ public:
   VectorFieldType *edgeAreaVec_;
   ScalarFieldType *massFlowRate_;
   ScalarFieldType *dualNodalVolume_;
+  // field for DA
+  GenericFieldType *filteredStress_;
 
   // peclet function specifics
   PecletFunction<double>* pecletFunction_;

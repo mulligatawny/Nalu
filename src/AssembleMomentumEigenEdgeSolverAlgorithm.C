@@ -49,6 +49,7 @@ AssembleMomentumEigenEdgeSolverAlgorithm::AssembleMomentumEigenEdgeSolverAlgorit
     edgeAreaVec_(NULL),
     massFlowRate_(NULL),
     dualNodalVolume_(NULL),
+    filteredStress_(NULL),
     pecletFunction_(NULL),
     Cw_(realm.get_turb_model_constant(TM_Cw))
 {
@@ -70,6 +71,9 @@ AssembleMomentumEigenEdgeSolverAlgorithm::AssembleMomentumEigenEdgeSolverAlgorit
   edgeAreaVec_ = meta_data.get_field<VectorFieldType>(stk::topology::EDGE_RANK, "edge_area_vector");
   massFlowRate_ = meta_data.get_field<ScalarFieldType>(stk::topology::EDGE_RANK, "mass_flow_rate");
   dualNodalVolume_ = meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "dual_nodal_volume");
+
+  // get filtered stress from dynamic averaging
+filteredStress_ = meta_data.get_field<GenericFieldType>(stk::topology::NODE_RANK, "filtered_stress");
 
   // create the peclet blending function
   pecletFunction_ = eqSystem->create_peclet_function<double>(velocity_->name());
@@ -293,6 +297,9 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
       const double volL = *stk::mesh::field_data( *dualNodalVolume_, nodeL );
       const double volR = *stk::mesh::field_data( *dualNodalVolume_, nodeR );
 
+      const double * fStressL = stk::mesh::field_data(*filteredStress_, nodeL);
+      const double * fStressR = stk::mesh::field_data(*filteredStress_, nodeR);
+
       // copy in extrapolated values
       for ( int i = 0; i < nDim; ++i ) {
         // extrapolated du
@@ -393,16 +400,26 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
         //NaluEnv::self().naluOutputP0() << "resolved_kk: " << resolved_kk << std::endl;
 
 
+        // form filtered stress as a tensor for easy looping
+        double S_fil[3][3];
+
+        for ( int i = 0; i < nDim; ++i ) {
+          const int offSet = nDim*i;
+          for ( int j = 0; j < nDim; ++j ) {
+            S_fil[i][j] = 0.5*(fStressL[offSet+j] + fStressR[offSet+j]);
+          }
+        }
+
+
         /*------------------------------------------------------------------------------*/
         /*------------------------------------------------------------------------------*/
         /*------------------------------------------------------------------------------*/
-        // compute resolved stress tensor
-        //
+        // compute ~~resolved~~ Leonard's (?) stress tensor
 
        
         for ( int i = 0; i < nDim; ++i ) {
           for ( int j = 0; j < nDim; ++j ) {
-            S_res[i][j] = uiIp_[i]*uiIp_[j];
+            S_res[i][j] = uiIp_[i]*uiIp_[j] - S_fil[i][j];
           }
         }
 

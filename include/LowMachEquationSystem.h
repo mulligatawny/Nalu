@@ -171,6 +171,10 @@ public:
 
   void compute_wall_function_params();
 
+  // dynamic averaging
+
+  virtual void register_dynamic_averaging();
+
   virtual void manage_projected_nodal_gradient(
      EquationSystems& eqSystems);
    virtual void compute_projected_nodal_gradient();
@@ -182,6 +186,9 @@ public:
 
   VectorFieldType *coordinates_;
   VectorFieldType *uTmp_;
+
+  // dynamic averaging
+  ScalarFieldType *filteredVolume;
 
   ScalarFieldType *visc_;
   ScalarFieldType *tvisc_;
