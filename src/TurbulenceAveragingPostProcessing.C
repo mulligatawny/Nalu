@@ -176,6 +176,9 @@ TurbulenceAveragingPostProcessing::load(
         get_if_present(y_spec, "compute_temperature_resolved_flux",
                        avInfo->computeTemperatureResolved_,
                        avInfo->computeTemperatureResolved_);
+        // Leonard's stress
+        get_if_present(y_spec, "compute_leonards_stress", avInfo->computeLeonardsStress_, avInfo->computeLeonardsStress_);
+
 
         // eleemnt-based quantities
         get_if_present(y_spec, "compute_mean_error_indicator", avInfo->computeMeanErrorIndictor_, avInfo->computeMeanErrorIndictor_);
@@ -323,6 +326,11 @@ TurbulenceAveragingPostProcessing::setup()
         register_field(tempFluxName, tempFluxSize, metaData, targetPart);
       }
       
+      if ( avInfo->computeLeonardsStress_ ) {
+          const std::string stressName = "leonards_stress";
+          register_field(stressName, stressSize, metaData, targetPart);
+      }
+
       // deal with density; always need Reynolds averaged quantity
       const std::string densityReynoldsName = "density_ra_" + averageBlockName;
       ScalarFieldType *densityReynolds =  &(metaData.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, densityReynoldsName));
@@ -610,6 +618,10 @@ TurbulenceAveragingPostProcessing::review(
     NaluEnv::self().naluOutputP0() << "production (name: production) will be computed" << std::endl;
   }
 
+  if ( avInfo->computeLeonardsStress_ ) {
+    NaluEnv::self().naluOutputP0() << "Leonard's stress will be computed; add leonards_stress to output"<< std::endl;
+  }
+
   // error check
   if ( avInfo->computeVorticity_ || avInfo->computeQcriterion_ || avInfo->computeLambdaCI_ ) {
     stk::mesh::FieldBase *dudx = realm_.meta_data().get_field(stk::topology::NODE_RANK, "dudx");
@@ -777,6 +789,10 @@ TurbulenceAveragingPostProcessing::execute()
     
     if ( avInfo->computeMeanErrorIndictor_) {
       compute_mean_error_indicator(s_all_nodes, dt, oldTimeFilter, zeroCurrent);
+    }
+
+    if ( avInfo->computeLeonardsStress_ ) {
+      compute_leonards_stress(avInfo->name_, s_all_nodes);
     }
     
     // avoid computing stresses when when oldTimeFilter is not zero
@@ -2043,5 +2059,57 @@ TurbulenceAveragingPostProcessing::compute_production(
 }
 
 
+//--------------------------------------------------------------------------
+//-------- compute_leonards_stress -----------------------------------------
+//--------------------------------------------------------------------------
+void
+TurbulenceAveragingPostProcessing::compute_leonards_stress(
+  const std::string &averageBlockName,
+  stk::mesh::Selector s_all_nodes)
+{
+  stk::mesh::MetaData & metaData = realm_.meta_data();
+  
+  const int nDim = realm_.spatialDimension_;
+  const int stressSize = realm_.spatialDimension_ == 3 ? 6 : 3;
+  
+  const std::string stressName = "leonards_stress";
+
+  // extract fields
+  stk::mesh::FieldBase *filteredStress = metaData.get_field(stk::topology::NODE_RANK, "filtered_stress");
+  stk::mesh::FieldBase *velocity = metaData.get_field(stk::topology::NODE_RANK, "velocity");
+  stk::mesh::FieldBase *stressA = metaData.get_field(stk::topology::NODE_RANK, stressName);
+
+  stk::mesh::BucketVector const& node_buckets_leon =
+    realm_.get_buckets( stk::topology::NODE_RANK, s_all_nodes );
+  for ( stk::mesh::BucketVector::const_iterator ib = node_buckets_leon.begin();
+        ib != node_buckets_leon.end() ; ++ib ) {
+    stk::mesh::Bucket & b = **ib ;
+    const stk::mesh::Bucket::size_type length   = b.size();
+    
+    // fields
+    const double *fStress = (double*)stk::mesh::field_data(*filteredStress, b);
+    double *uNp1 = (double*)stk::mesh::field_data(*velocity,b);
+    double *stress = (double*)stk::mesh::field_data(*stressA, b);
+
+    const int offSet = nDim*nDim;
+
+    for ( stk::mesh::Bucket::size_type k = 0 ; k < length ; ++k ) {
+
+      // stress is symmetric, so only save off 6 or 3 components
+      int componentCount = 0;
+      for ( int i = 0; i < nDim; ++i ) {
+        const double ui = uNp1[k*nDim+i];
+        for ( int j = i; j < nDim; ++j ) {
+          const int component = componentCount;
+          const double uj = uNp1[k*nDim+j];
+          const double newStress = ui*uj - fStress[k*stressSize+component];
+          stress[k*stressSize+component] = newStress;
+          componentCount++;
+        }
+      }
+    }
+    
+  }
+}
 } // namespace nalu
 } // namespace Sierra

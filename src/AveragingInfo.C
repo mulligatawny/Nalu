@@ -38,7 +38,8 @@ AveragingInfo::AveragingInfo()
   computeDissipationRate_(false),
   computeProduction_(false),
   computeTemperatureSFS_(false),
-  computeTemperatureResolved_(false)
+  computeTemperatureResolved_(false),
+  computeLeonardsStress_(false)
 {
   // does nothing
 }

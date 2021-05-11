@@ -53,6 +53,9 @@ public:
   // Temperature stresses
   bool computeTemperatureSFS_;
   bool computeTemperatureResolved_;
+
+  // Leonard's stress 
+  bool computeLeonardsStress_;
   
   // vector of part names, e.g., block_1, surface_2
   std::vector<std::string> targetNames_;
