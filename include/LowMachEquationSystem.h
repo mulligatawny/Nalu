@@ -189,6 +189,7 @@ public:
 
   // dynamic averaging
   ScalarFieldType *filteredVolume;
+  ScalarFieldType *filteredVelocity;
 
   ScalarFieldType *visc_;
   ScalarFieldType *tvisc_;

@@ -50,6 +50,7 @@ public:
   ScalarFieldType *dualNodalVolume_;
   // field for DA
   GenericFieldType *filteredStress_;
+  GenericFieldType *filteredVelocity_;
 
   // peclet function specifics
   PecletFunction<double>* pecletFunction_;

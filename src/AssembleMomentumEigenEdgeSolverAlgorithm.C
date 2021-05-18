@@ -50,6 +50,7 @@ AssembleMomentumEigenEdgeSolverAlgorithm::AssembleMomentumEigenEdgeSolverAlgorit
     massFlowRate_(NULL),
     dualNodalVolume_(NULL),
     filteredStress_(NULL),
+    filteredVelocity_(NULL),
     pecletFunction_(NULL),
     Cw_(realm.get_turb_model_constant(TM_Cw))
 {
@@ -72,8 +73,9 @@ AssembleMomentumEigenEdgeSolverAlgorithm::AssembleMomentumEigenEdgeSolverAlgorit
   massFlowRate_ = meta_data.get_field<ScalarFieldType>(stk::topology::EDGE_RANK, "mass_flow_rate");
   dualNodalVolume_ = meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "dual_nodal_volume");
 
-  // get filtered stress from dynamic averaging
+  // get filtered stress and velocity from dynamic averaging
 filteredStress_ = meta_data.get_field<GenericFieldType>(stk::topology::NODE_RANK, "filtered_stress");
+filteredVelocity_ = meta_data.get_field<GenericFieldType>(stk::topology::NODE_RANK, "filtered_velocity");
 
   // create the peclet blending function
   pecletFunction_ = eqSystem->create_peclet_function<double>(velocity_->name());
@@ -300,6 +302,9 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
       const double * fStressL = stk::mesh::field_data(*filteredStress_, nodeL);
       const double * fStressR = stk::mesh::field_data(*filteredStress_, nodeR);
 
+      const double * fVelocityL = stk::mesh::field_data(*filteredVelocity_, nodeL);
+      const double * fVelocityR = stk::mesh::field_data(*filteredVelocity_, nodeR);
+
       // copy in extrapolated values
       for ( int i = 0; i < nDim; ++i ) {
         // extrapolated du
@@ -399,6 +404,11 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
         resolved_kk = uiIp_[0]*uiIp_[0] + uiIp_[1]*uiIp_[1] + uiIp_[2]*uiIp_[2] + 1.0e-20;
         //NaluEnv::self().naluOutputP0() << "resolved_kk: " << resolved_kk << std::endl;
 
+        // calculate double-filtered-velocities-stress
+        double fuiIp_[3];
+        fuiIp_[0] = 0.5*(fVelocityR[0] + fVelocityL[0]);
+        fuiIp_[1] = 0.5*(fVelocityR[1] + fVelocityL[1]);
+        fuiIp_[2] = 0.5*(fVelocityR[2] + fVelocityL[2]);
 
         // form filtered stress as a tensor for easy looping
         double S_fil[3][3];
@@ -410,16 +420,10 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
           }
         }
 
-
-        /*------------------------------------------------------------------------------*/
-        /*------------------------------------------------------------------------------*/
-        /*------------------------------------------------------------------------------*/
-        // compute ~~resolved~~ Leonard's (?) stress tensor
-
-       
+        // compute modified Leonard's stress
         for ( int i = 0; i < nDim; ++i ) {
           for ( int j = 0; j < nDim; ++j ) {
-            S_res[i][j] = uiIp_[i]*uiIp_[j] - S_fil[i][j];
+            S_res[i][j] = S_fil[i][j] - fuiIp_[i]*fuiIp_[j];
           }
         }
 

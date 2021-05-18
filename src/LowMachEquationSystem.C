@@ -1075,6 +1075,10 @@ MomentumEquationSystem::register_nodal_fields(
     = &(meta_data.declare_field<GenericFieldType>(stk::topology::NODE_RANK, "filtered_stress"));
   stk::mesh::put_field_on_mesh(*filteredStress, *part, nDim*nDim, nullptr);
 
+  GenericFieldType *filteredVelocity
+    = &(meta_data.declare_field<GenericFieldType>(stk::topology::NODE_RANK, "filtered_velocity"));
+  stk::mesh::put_field_on_mesh(*filteredVelocity, *part, nDim, nullptr);
+
 
 
 
@@ -2252,12 +2256,15 @@ MomentumEquationSystem::register_dynamic_averaging()
   stk::mesh::BulkData &bulkData = realm_.bulk_data();
   const int nDim = metaData.spatial_dimension(); // added as in project_nodal_veloctiy() from LMES
 
-  // get filtered volume and stress
+  // get filtered volume, velocity and stress
   ScalarFieldType *filteredVolume 
     = metaData.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "filtered_volume");
 
   GenericFieldType *filteredStress 
     = metaData.get_field<GenericFieldType>(stk::topology::NODE_RANK, "filtered_stress");
+
+  GenericFieldType *filteredVelocity
+    = metaData.get_field<GenericFieldType>(stk::topology::NODE_RANK, "filtered_velocity");
 
   // Needed for master element calculations (already registered)
   VectorFieldType *coordinates 
@@ -2282,18 +2289,23 @@ MomentumEquationSystem::register_dynamic_averaging()
     const stk::mesh::Bucket::size_type length   = b.size();
     double * fVolume = stk::mesh::field_data(*filteredVolume, b);
     double * fStress = stk::mesh::field_data(*filteredStress, b);
+    double * fVelocity = stk::mesh::field_data(*filteredVelocity, b);
 
     for ( stk::mesh::Bucket::size_type k = 0 ; k < length ; ++k ) {
       // scalar
       fVolume[k] = 0.0;
 
+      // vector
+      const int kNdim = k*nDim;    
+      for ( int i = 0; i < nDim; ++i ) {
+        fVelocity[kNdim+i] = 0.0;
+      }
 
       // tensor
       const int kNdimNdim = k*nDim*nDim;    
       for ( int i = 0; i < nDim*nDim; ++i ) {
         fStress[kNdimNdim+i] = 0.0;
       }
-
     }
   }
 
@@ -2447,10 +2459,12 @@ MomentumEquationSystem::register_dynamic_averaging()
         // pointers to real data
         double * fVolume = stk::mesh::field_data(*filteredVolume, node);
         double * fStress = stk::mesh::field_data(*filteredStress, node);
+        double * fVelocity = stk::mesh::field_data(*filteredVelocity, node);
 
         *fVolume += elemVolume;
 
         for ( int i = 0; i < nDim; ++i ) {
+          fVelocity[i] += elemVelocity[i];
           for ( int j = 0; j < nDim; ++j ) {
             const int lStride = i*nDim+j;
             fStress[lStride] += elemStress[lStride];
@@ -2461,7 +2475,7 @@ MomentumEquationSystem::register_dynamic_averaging()
   }
 
   // parallel assemble
-  stk::mesh::parallel_sum(bulkData, {filteredVolume, filteredStress}); 
+  stk::mesh::parallel_sum(bulkData, {filteredVolume, filteredVelocity, filteredStress}); 
 
   // assemble nodal filter
   if ( realm_.hasPeriodic_ ) {
@@ -2475,6 +2489,7 @@ MomentumEquationSystem::register_dynamic_averaging()
     const stk::mesh::Bucket::size_type length   = b.size();
     double * fVolume = stk::mesh::field_data(*filteredVolume, b);
     double * fStress = stk::mesh::field_data(*filteredStress, b);
+    double * fVelocity = stk::mesh::field_data(*filteredVelocity, b);
 
   // few more lines to divide quantities by variable holding * fVolume
     for ( stk::mesh::Bucket::size_type k = 0 ; k < length ; ++k ) {
@@ -2482,19 +2497,25 @@ MomentumEquationSystem::register_dynamic_averaging()
       // extract nodal filter
       const double nodalFilter = fVolume[k];
 
+      // vector
+      const int kNdim = k*nDim;    
+      for ( int i = 0; i < nDim; ++i ) {
+        fVelocity[kNdim+i] /= nodalFilter;
+      }
+
       // tensor
       const int kNdimNdim = k*nDim*nDim;    
       for ( int i = 0; i < nDim*nDim; ++i ) {
         fStress[kNdimNdim+i] /= nodalFilter;
       }
     }
-
   }
 
   // periodic assemble
   if ( realm_.hasPeriodic_) {
     // one by one... (filter has already been completed prior to normalization)
     realm_.periodic_field_update(filteredStress, nDim*nDim);
+    realm_.periodic_field_update(filteredVelocity, nDim);
   }
 
 }
