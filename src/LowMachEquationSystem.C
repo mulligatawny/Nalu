@@ -761,6 +761,7 @@ LowMachEquationSystem::solve_and_update()
 
     // dynamic averaging
     momentumEqSys_->register_dynamic_averaging();
+    momentumEqSys_->register_reynolds_stress();
 
     // momentum assemble, load_complete and solve
     momentumEqSys_->assemble_and_solve(momentumEqSys_->uTmp_);
@@ -1079,8 +1080,14 @@ MomentumEquationSystem::register_nodal_fields(
     = &(meta_data.declare_field<GenericFieldType>(stk::topology::NODE_RANK, "filtered_velocity"));
   stk::mesh::put_field_on_mesh(*filteredVelocity, *part, nDim, nullptr);
 
+  // FIELD FOR DUPLICATE REYNOLDS NUMBER 
+  GenericFieldType *reDuplicate
+    = &(meta_data.declare_field<GenericFieldType>(stk::topology::NODE_RANK, "re_duplicate"));
+  stk::mesh::put_field_on_mesh(*reDuplicate, *part, 6, nullptr);
 
-
+  GenericFieldType *reynoldsStress
+    = &(meta_data.declare_field<GenericFieldType>(stk::topology::NODE_RANK, "reynolds_stress"));
+  stk::mesh::put_field_on_mesh(*reynoldsStress, *part, 6, nullptr);
 
   if ( realm_.is_turbulent() ) {
     tvisc_ =  &(meta_data.declare_field<ScalarFieldType>(stk::topology::NODE_RANK, "turbulent_viscosity"));
@@ -2520,6 +2527,41 @@ MomentumEquationSystem::register_dynamic_averaging()
 
 }
 
+//--------------------------------------------------------------------------
+void
+MomentumEquationSystem::register_reynolds_stress()
+{
+  stk::mesh::MetaData & metaData = realm_.meta_data();
+  stk::mesh::BulkData &bulkData = realm_.bulk_data();
+  const int nDim = metaData.spatial_dimension(); // added as in project_nodal_veloctiy() from LMES
+
+  GenericFieldType *reynoldsStress 
+    = metaData.get_field<GenericFieldType>(stk::topology::NODE_RANK, "reynolds_stress");
+
+  GenericFieldType *reDuplicate
+    = metaData.get_field<GenericFieldType>(stk::topology::NODE_RANK, "re_duplicate");
+
+  // zero fields (nodal loop over shared/owned where filtered variable was registered)
+  stk::mesh::Selector s_all_nodes
+    = stk::mesh::selectField(*reDuplicate);
+
+  stk::mesh::BucketVector const& node_buckets =
+    realm_.get_buckets( stk::topology::NODE_RANK, s_all_nodes );
+  for ( stk::mesh::BucketVector::const_iterator ib = node_buckets.begin() ;
+        ib != node_buckets.end() ; ++ib ) {
+    stk::mesh::Bucket & b = **ib ;
+    const stk::mesh::Bucket::size_type length   = b.size();
+    double * rStress = stk::mesh::field_data(*reynoldsStress, b);
+    double * rDup = stk::mesh::field_data(*reDuplicate, b);
+
+    for ( stk::mesh::Bucket::size_type k = 0 ; k < length ; ++k ) {
+      const int kNdimNdim = k*6;    
+      for ( int i = 0; i < 6; ++i ) {
+        rDup[kNdimNdim+i] = rStress[kNdimNdim+i];
+      }
+    }
+  }
+}
 
 //--------------------------------------------------------------------------
 //-------- compute_projected_nodal_gradient---------------------------------

@@ -51,6 +51,7 @@ public:
   // field for DA
   GenericFieldType *filteredStress_;
   GenericFieldType *filteredVelocity_;
+  GenericFieldType *reynoldsStress_;
 
   // peclet function specifics
   PecletFunction<double>* pecletFunction_;

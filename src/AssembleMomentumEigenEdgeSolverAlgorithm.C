@@ -51,6 +51,7 @@ AssembleMomentumEigenEdgeSolverAlgorithm::AssembleMomentumEigenEdgeSolverAlgorit
     dualNodalVolume_(NULL),
     filteredStress_(NULL),
     filteredVelocity_(NULL),
+    reynoldsStress_(NULL),
     pecletFunction_(NULL),
     Cw_(realm.get_turb_model_constant(TM_Cw))
 {
@@ -74,8 +75,11 @@ AssembleMomentumEigenEdgeSolverAlgorithm::AssembleMomentumEigenEdgeSolverAlgorit
   dualNodalVolume_ = meta_data.get_field<ScalarFieldType>(stk::topology::NODE_RANK, "dual_nodal_volume");
 
   // get filtered stress and velocity from dynamic averaging
-filteredStress_ = meta_data.get_field<GenericFieldType>(stk::topology::NODE_RANK, "filtered_stress");
-filteredVelocity_ = meta_data.get_field<GenericFieldType>(stk::topology::NODE_RANK, "filtered_velocity");
+  filteredStress_ = meta_data.get_field<GenericFieldType>(stk::topology::NODE_RANK, "filtered_stress");
+  filteredVelocity_ = meta_data.get_field<GenericFieldType>(stk::topology::NODE_RANK, "filtered_velocity");
+
+  // get Reynolds stress
+  reynoldsStress_ = meta_data.get_field<GenericFieldType>(stk::topology::NODE_RANK, "reynolds_stress");
 
   // create the peclet blending function
   pecletFunction_ = eqSystem->create_peclet_function<double>(velocity_->name());
@@ -305,6 +309,9 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
       const double * fVelocityL = stk::mesh::field_data(*filteredVelocity_, nodeL);
       const double * fVelocityR = stk::mesh::field_data(*filteredVelocity_, nodeR);
 
+      const double * rStressL = stk::mesh::field_data(*reynoldsStress_, nodeL);
+      const double * rStressR = stk::mesh::field_data(*reynoldsStress_, nodeR);
+
       // copy in extrapolated values
       for ( int i = 0; i < nDim; ++i ) {
         // extrapolated du
@@ -410,33 +417,32 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
         fuiIp_[1] = 0.5*(fVelocityR[1] + fVelocityL[1]);
         fuiIp_[2] = 0.5*(fVelocityR[2] + fVelocityL[2]);
 
-        // form filtered stress as a tensor for easy looping
-        double S_fil[3][3];
-
+        // form Reynolds stress tensor
+        // "reynolds_stress" is of size 6, not 9!
+        double R_str[3][3];
+        int offSetRS = 0;
         for ( int i = 0; i < nDim; ++i ) {
-          const int offSet = nDim*i;
-          for ( int j = 0; j < nDim; ++j ) {
-            S_fil[i][j] = 0.5*(fStressL[offSet+j] + fStressR[offSet+j]);
+          for ( int j = i; j < nDim; ++j ) {
+            R_str[i][j] = 0.5*(rStressL[offSetRS] + rStressR[offSetRS]);
+            offSetRS++;
           }
         }
 
-        // compute modified Leonard's stress
-        for ( int i = 0; i < nDim; ++i ) {
-          for ( int j = 0; j < nDim; ++j ) {
-            S_res[i][j] = S_fil[i][j] - fuiIp_[i]*fuiIp_[j];
-          }
-        }
+        // use symmetry
+        R_str[1][0] = R_str[0][1];
+        R_str[2][0] = R_str[0][2];
+        R_str[2][1] = R_str[1][2];
 
-        // compute resolved stress anisotropy tensor
-        double tr_res = S_res[0][0] + S_res[1][1] + S_res[2][2];
+        // compute anisotropy tensor
+        double tr_res = R_str[0][0] + R_str[1][1] + R_str[2][2];
 
         for ( int i = 0; i < nDim; ++i ) {
           for ( int j = 0; j < nDim; ++j ) {
             if (i==j) {
-              A_res[i][j] = S_res[i][j]/(tr_res + small) -1.0/3.0;
+              A_res[i][j] = R_str[i][j]/(tr_res + small) -1.0/3.0;
             }
             else {
-              A_res[i][j] = S_res[i][j]/(tr_res + small);
+              A_res[i][j] = R_str[i][j]/(tr_res + small);
             }
           }
         }

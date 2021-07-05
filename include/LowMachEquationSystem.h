@@ -174,6 +174,7 @@ public:
   // dynamic averaging
 
   virtual void register_dynamic_averaging();
+  virtual void register_reynolds_stress();
 
   virtual void manage_projected_nodal_gradient(
      EquationSystems& eqSystems);
@@ -190,6 +191,8 @@ public:
   // dynamic averaging
   ScalarFieldType *filteredVolume;
   ScalarFieldType *filteredVelocity;
+  GenericFieldType *reDuplicate;
+  GenericFieldType *reynoldsStress;
 
   ScalarFieldType *visc_;
   ScalarFieldType *tvisc_;
