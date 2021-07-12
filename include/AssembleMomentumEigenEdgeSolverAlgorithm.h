@@ -90,6 +90,8 @@ public:
   double Q_res[3][3];
   double D_res[3][3];
   const double Cw_;
+  int currIter;
+  int momentumPerturbFrequency;
 
 };
 

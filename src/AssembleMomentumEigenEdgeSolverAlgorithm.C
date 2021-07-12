@@ -53,7 +53,9 @@ AssembleMomentumEigenEdgeSolverAlgorithm::AssembleMomentumEigenEdgeSolverAlgorit
     filteredVelocity_(NULL),
     reynoldsStress_(NULL),
     pecletFunction_(NULL),
-    Cw_(realm.get_turb_model_constant(TM_Cw))
+    Cw_(realm.get_turb_model_constant(TM_Cw)),
+    currIter(0),
+    momentumPerturbFrequency(0)
 {
   // save off fields
   stk::mesh::MetaData & meta_data = realm_.meta_data();
@@ -88,6 +90,8 @@ AssembleMomentumEigenEdgeSolverAlgorithm::AssembleMomentumEigenEdgeSolverAlgorit
   if(realm_.solutionOptions_->momentumPerturb_) {
 
     NaluEnv::self().naluOutputP0() << std::endl << "LES sgs stress perturbation model active:" << std::endl;
+
+    momentumPerturbFrequency = realm_.solutionOptions_->momentumPerturbFrequency_;
 
     // sgs stress magnitude perturbation
     if(realm_.solutionOptions_->momentumMagnitudePerturb_) {
@@ -230,6 +234,14 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
   double *p_limitR = &limitR[0];
   double *p_duL = &duL[0];
   double *p_duR = &duR[0];
+
+  // get current iteration count 
+  currIter++;
+  NaluEnv::self().naluOutputP0() << std::endl << "Current Iteration: " 
+                                 << currIter << std::endl;
+  if (!(currIter % momentumPerturbFrequency)) {
+    NaluEnv::self().naluOutputP0() << "Applying perturbations" << std::endl;
+  }
 
   // deal with state
   VectorFieldType &velocityNp1 = velocity_->field_of_state(stk::mesh::StateNP1);
@@ -400,7 +412,8 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
       }
 
       // sgs stress perturbation
-      if(realm_.solutionOptions_->momentumPerturb_) {
+      if(realm_.solutionOptions_->momentumPerturb_ && 
+         !(currIter % momentumPerturbFrequency)) {
 
         // calculate resolved_kk
         double uiIp_[3];
@@ -409,7 +422,6 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
         uiIp_[2] = 0.5*(uNp1R[2] + uNp1L[2]);
 
         resolved_kk = uiIp_[0]*uiIp_[0] + uiIp_[1]*uiIp_[1] + uiIp_[2]*uiIp_[2] + 1.0e-20;
-        //NaluEnv::self().naluOutputP0() << "resolved_kk: " << resolved_kk << std::endl;
 
         // calculate double-filtered-velocities-stress
         double fuiIp_[3];
@@ -455,39 +467,33 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
             S_[i][j] = 0.5*(p_duidxj[offSetI+j] + p_duidxj[offSetTrans]);
           }
         }
-        //NaluEnv::self().naluOutputP0() << "Trace S_ij: " << S_[0][0] + S_[1][1] + S_[2][2] << std::endl;
 
-        // correct non-zero trace S_ tensor. Even for incompressible flow simulation, the edge-based velocity field may not be discretely divergence-free. The eigenvalues are slightly modified but not the eigenvectors.
+        // correct non-zero trace S_ tensor. Even for incompressible flow 
+        // simulations, the edge-based velocity field may not be discretely
+        // divergence-free. 
+        // The eigenvalues are slightly modified but not the eigenvectors.
         const double tmp = (S_[0][0] + S_[1][1] + S_[2][2])/3.0;
         S_[0][0] -= tmp;
         S_[1][1] -= tmp;
         S_[2][2] -= tmp;
-        //NaluEnv::self().naluOutputP0() << "Trace S_ij: " << S_[0][0] + S_[1][1] + S_[2][2] << std::endl;
 
         // compute filter size
         filter = std::pow(volIp, invNdim);
-        //NaluEnv::self().naluOutputP0() << "Filter size: " << filter << std::endl;
 
-        // compute nu_sgs
+        // compute nu_sgs (viscIp is mu, not nu)
         nu_sgs = (viscIp - viscLamIp)/rhoIp;
-        //NaluEnv::self().naluOutputP0() << "nu: " << viscIp/rhoIp << "   nu_lam: " << viscLamIp/rhoIp << "   nu_sgs: " << nu_sgs << std::endl;
 
         // compute S_mag
         const double S_mag = sqrt( 0.5*( 4.0*S_[0][0]*S_[0][0] + 4.0*S_[0][1]*S_[0][1] + 4.0*S_[0][2]*S_[0][2]
                                        + 4.0*S_[1][0]*S_[1][0] + 4.0*S_[1][1]*S_[1][1] + 4.0*S_[1][2]*S_[1][2]
                                        + 4.0*S_[2][0]*S_[2][0] + 4.0*S_[2][1]*S_[2][1] + 4.0*S_[2][2]*S_[2][2] ) );
-        //NaluEnv::self().naluOutputP0() << "S_mag: " << S_mag << std::endl;
 
         // calculate modeled_kk
         modeled_kk = sqrt(3.0)*nu_sgs*S_mag + 1.0e-20;
         //modeled_kk = sqrt(3.0)*(0.5*0.5*nu_sgs/(Cw_*Cw_))*S_mag + 1.0e-20; // Modification to recover Nicoud et al. original Cw_ value (Cw_ = 0.5).
         //modeled_kk = 2.0*0.0886*filter*filter*S_mag*S_mag + 1.0e-20; // Yoshizawa model proposed in Vreman et al. 1994.
 
-        //NaluEnv::self().naluOutputP0() << "modeled_kk: " << modeled_kk << std::endl;
-
-        // calculate total_kk = resolved_kk + modeled_kk
         total_kk = resolved_kk + modeled_kk + 1.0e-20;
-        //NaluEnv::self().naluOutputP0() << "total_kk: " << total_kk << std::endl;
 
         // compute the modeled anisotropy sgs stress tensor A_
         for ( int i = 0; i < nDim; ++i ) {
@@ -496,29 +502,20 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
           }
         }
 
-
-       //---------------------------------------------------------------//
-       //---------------------------------------------------------------//
        //---------------------------------------------------------------//
        // get and sort resolved stress eigenvalues
        diagonalize(A_res, Q_res, D_res);
        sort(Q_res, D_res);
 
-        //if( A_[0][0] < (-1.0/3.0) || A_[0][0] > (2.0/3.0) || A_[1][1] < (-1.0/3.0) || A_[1][1] > (2.0/3.0) || A_[2][2] < (-1.0/3.0) || A_[2][2] > (2.0/3.0) || A_[0][1] < -0.5 || A_[0][1] > 0.5 || A_[0][2] < -0.5 || A_[0][2] > 0.5 || A_[1][0] < -0.5 || A_[1][0] > 0.5 || A_[1][2] < -0.5 || A_[1][2] > 0.5 || A_[2][0] < -0.5 || A_[2][0] > 0.5 || A_[2][1] < -0.5 || A_[2][1] > 0.5 ) { NaluEnv::self().naluOutputP0() << "a11: " << A_[0][0] << "  a12: " << A_[0][1] << "  a13: " << A_[0][2] << "  a21: " << A_[1][0] << "  a22: " << A_[1][1] << "  a23: " << A_[1][2] << "  a31: " << A_[2][0] << "  a32: " << A_[2][1] << "  a33: " << A_[2][2] << "   total_kk: " << total_kk << std::endl; } else { NaluEnv::self().naluOutputP0() << "total_kk: " << total_kk << std::endl;} 
 
         // perform the decomposition
         diagonalize(A_, Q_, D_);
-        //NaluEnv::self().naluOutputP0() << "Lambda1: " << D_[0][0] << "   Lambda2: " << D_[1][1] << "   Lambda3: " << D_[2][2] << "   Sum: " << D_[0][0] + D_[1][1] + D_[2][2] << "   Sum - A_trace: " << (D_[0][0] + D_[1][1] + D_[2][2]) - (A_[0][0] + A_[1][1] + A_[2][2]) << std::endl;
-        //NaluEnv::self().naluOutputP0() << D_[0][0] << "  " << D_[0][1] << "  " << D_[0][2] << "  " << D_[1][0] << "  " << D_[1][1] << "  " << D_[1][2] << "  " << D_[2][0] << "  " <<D_[2][1] << "  " << D_[2][2] << std::endl;
 
         // sort Q and D: eigenvectors and eigenvalues need to be reorganized at the same time to recover the same tensor
         sort(Q_, D_);
-        //NaluEnv::self().naluOutputP0() << "Lambda1: " << D_[0][0] << "   Lambda2: " << D_[1][1] << "   Lambda3: " << D_[2][2] << "   Sum: " << D_[0][0] + D_[1][1] + D_[2][2] << std::endl;
-        //NaluEnv::self().naluOutputP0() <<"total_kk: " << total_kk << "  nu_sgs: " << nu_sgs << "  x0: " << 0.0*(D_[0][0] - D_[1][1]) + 1.0*(2.0*D_[1][1] - 2.0*D_[2][2]) + 0.5*(3.0*D_[2][2] + 1.0) << "  x1: " << 0.0*(D_[0][0] - D_[1][1]) + 0.0*(2.0*D_[1][1] - 2.0*D_[2][2]) + (sqrt(3.0)/2.0)*(3.0*D_[2][2] + 1.0) << std::endl;
 
         // perturb
         perturb(Q_, D_, D_res, Q_res);
-        //NaluEnv::self().naluOutputP0() << "Lambda1: " << D_[0][0] << "   Lambda2: " << D_[1][1] << "   Lambda3: " << D_[2][2] << "   Sum: " << D_[0][0] + D_[1][1] + D_[2][2] << std::endl;
 
         // form perturbed stress tensor (deviatoric term absorbed into pressure)
         form_perturbed_stress(D_, Q_, A_);
@@ -530,18 +527,15 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
           // Therefore, -resolved_kk - modeled_kk <= delta_kk <= total_kk - modeled_kk
 
           const double delta_kk_ = (coeff_kk_ > 0.0) ? (coeff_kk_*resolved_kk) : (coeff_kk_*(resolved_kk + modeled_kk));
-          //NaluEnv::self().naluOutputP0() << "delta_kk: " << delta_kk << std::endl;
 
           modeled_kk += delta_kk_;
-          //NaluEnv::self().naluOutputP0() << "modeled_kk: " << modeled_kk << std::endl;
 
           // calculate total_kk = resolved_kk + modeled_kk
           total_kk = resolved_kk + modeled_kk + 1.0e-20;
-          //NaluEnv::self().naluOutputP0() << "total_kk: " << total_kk << std::endl;
-
         }
 
-        // In the case of eigenvector perturbation with permutation 3 -> ensure that viscous dissipation is larger than SGS dissipation
+        // In the case of eigenvector perturbation with permutation 3 ->
+        // ensure that viscous dissipation is larger than SGS dissipation
         if(realm_.solutionOptions_->momentumEigenvectorPerturb_) {
 
           if(eigenvectorPermutation_ == 3) {
@@ -558,22 +552,15 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
 
             // scaling factor
             const double scalingFactor = fabs(visDissipation/sgsDissipation);
-            //NaluEnv::self().naluOutputP0() << "Scaling factor: " << scalingFactor << std::endl;
 
             // scale sgs (total) production if it is larger than viscous dissipation
             if(scalingFactor < 1.0) {
-
               //total_kk *= scalingFactor;
               total_kk *= scalingFactor;
               total_kk += 1.0e-20;
-              //NaluEnv::self().naluOutputP0() << "total_kk: " << total_kk << std::endl;
-
             }
-
           }
-
         }
-
       }
 
       // lhs diffusion; only -mu*dui/dxj*Aj contribution for now
@@ -777,7 +764,7 @@ AssembleMomentumEigenEdgeSolverAlgorithm::diagonalize(
     m[1]    = std::abs(o[1]);
     m[2]    = std::abs(o[2]);
 
-    k0      = (m[0] > m[1] && m[0] > m[2])?0: (m[1] > m[2])? 1 : 2; // index of largest element of offdiag
+    k0      = (m[0] > m[1] && m[0] > m[2])?0: (m[1] > m[2])? 1 : 2; 
     k1      = (k0+1)%3;
     k2      = (k0+2)%3;
     if (o[k0]==0.0) {
@@ -786,13 +773,13 @@ AssembleMomentumEigenEdgeSolverAlgorithm::diagonalize(
     thet    = (D[k2][k2]-D[k1][k1])/(2.0*o[k0]);
     sgn     = (thet > 0.0)?1.0:-1.0;
     thet   *= sgn; // make it positive
-    t       = sgn /(thet +((thet < 1.E6)? std::sqrt(thet*thet+1.0):thet)) ; // sign(T)/(|T|+sqrt(T^2+1))
+    t       = sgn /(thet +((thet < 1.E6)? std::sqrt(thet*thet+1.0):thet)); 
     c       = 1.0/std::sqrt(t*t+1.0); //  c= 1/(t^2+1) , t=s/c 
     if(c==1.0) {
       break;  // no room for improvement - reached machine precision.
     }
     jr[0 ]  = jr[1] = jr[2] = jr[3] = 0.0;
-    jr[k0]  = sgn*std::sqrt((1.0-c)/2.0);  // using 1/2 angle identity sin(a/2) = std::sqrt((1-cos(a))/2)  
+    jr[k0]  = sgn*std::sqrt((1.0-c)/2.0); 
     jr[k0] *= -1.0; // since our quat-to-matrix convention was for v*M instead of M*v
     jr[3 ]  = std::sqrt(1.0f - jr[k0] * jr[k0]);
     if(jr[3]==1.0) {
@@ -817,7 +804,8 @@ void
 AssembleMomentumEigenEdgeSolverAlgorithm::sort(
   double (&Q)[3][3], double (&D)[3][3])
 {
-  // Goal: sort diagonalization eigenvalues from high to low; save off row in D from high to low; reorder Q tensor accordingly
+  // Goal: sort diagonalization eigenvalues from high to low; 
+  // save off row in D from high to low; reorder Q tensor accordingly
 
   for(int i = 0; i < 2; ++i) {
 
@@ -827,10 +815,15 @@ AssembleMomentumEigenEdgeSolverAlgorithm::sort(
       D[0][0] = D[1][1];
       D[1][1] = tempEigenvalue;
 
-      double tempEigenvector0 = Q[0][0]; double tempEigenvector1 = Q[1][0]; double tempEigenvector2 = Q[2][0];
-      Q[0][0] = Q[0][1]; Q[1][0] = Q[1][1]; Q[2][0] = Q[2][1];
-      Q[0][1] = tempEigenvector0; Q[1][1] = tempEigenvector1; Q[2][1] = tempEigenvector2;
-
+      double tempEigenvector0 = Q[0][0];
+      double tempEigenvector1 = Q[1][0];
+      double tempEigenvector2 = Q[2][0];
+      Q[0][0] = Q[0][1];
+      Q[1][0] = Q[1][1];
+      Q[2][0] = Q[2][1];
+      Q[0][1] = tempEigenvector0;
+      Q[1][1] = tempEigenvector1;
+      Q[2][1] = tempEigenvector2;
     }
 
     if(D[1][1] < D[2][2]) {
@@ -839,12 +832,16 @@ AssembleMomentumEigenEdgeSolverAlgorithm::sort(
       D[1][1] = D[2][2];
       D[2][2] = tempEigenvalue;
 
-      double tempEigenvector0 = Q[0][1]; double tempEigenvector1 = Q[1][1]; double tempEigenvector2 = Q[2][1];
-      Q[0][1] = Q[0][2]; Q[1][1] = Q[1][2]; Q[2][1] = Q[2][2];
-      Q[0][2] = tempEigenvector0; Q[1][2] = tempEigenvector1; Q[2][2] = tempEigenvector2;
-
+      double tempEigenvector0 = Q[0][1];
+      double tempEigenvector1 = Q[1][1];
+      double tempEigenvector2 = Q[2][1];
+      Q[0][1] = Q[0][2];
+      Q[1][1] = Q[1][2];
+      Q[2][1] = Q[2][2];
+      Q[0][2] = tempEigenvector0;
+      Q[1][2] = tempEigenvector1;
+      Q[2][2] = tempEigenvector2;
     }
-
   }
 }
 
@@ -916,11 +913,8 @@ AssembleMomentumEigenEdgeSolverAlgorithm::perturb(
       Q[0][0] = Q0_[0][2]; Q[0][1] = Q0_[0][1]; Q[0][2] = Q0_[0][0];
       Q[1][0] = Q0_[1][2]; Q[1][1] = Q0_[1][1]; Q[1][2] = Q0_[1][0];
       Q[2][0] = Q0_[2][2]; Q[2][1] = Q0_[2][1]; Q[2][2] = Q0_[2][0];
-
     }
-
   }
-
 }
 
 //--------------------------------------------------------------------------
@@ -967,7 +961,7 @@ AssembleMomentumEigenEdgeSolverAlgorithm::matrix_matrix_multiply(
 }
 
 //--------------------------------------------------------------------------
-//-------- van_leer ---------------------------------------------------------
+//-------- van_leer --------------------------------------------------------
 //--------------------------------------------------------------------------
 double
 AssembleMomentumEigenEdgeSolverAlgorithm::van_leer(

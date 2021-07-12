@@ -136,6 +136,7 @@ public:
   int momentumEigenvaluePerturbBiasTowards_;
   bool momentumEigenvectorPerturb_;
   int momentumEigenvectorPerturbPermutation_;
+  int momentumPerturbFrequency_;
   bool eigenvaluePerturb_;
   double eigenvaluePerturbDelta_;
   int eigenvaluePerturbBiasTowards_;

@@ -79,6 +79,7 @@ SolutionOptions::SolutionOptions()
     momentumEigenvaluePerturbBiasTowards_(3),
     momentumEigenvectorPerturb_(false),
     momentumEigenvectorPerturbPermutation_(1),
+    momentumPerturbFrequency_(2),
     eigenvaluePerturb_(false),
     eigenvaluePerturbDelta_(0.0),
     eigenvaluePerturbBiasTowards_(3),
@@ -151,6 +152,7 @@ SolutionOptions::load(const YAML::Node & y_node)
     get_if_present(y_solution_options, "momentum_eigenvalue_perturbation_bias_towards", momentumEigenvaluePerturbBiasTowards_);
     get_if_present(y_solution_options, "momentum_eigenvector_perturbation", momentumEigenvectorPerturb_);
     get_if_present(y_solution_options, "momentum_eigenvector_perturbation_permutation", momentumEigenvectorPerturbPermutation_);
+    get_if_present(y_solution_options, "momentum_perturbation_frequency", momentumPerturbFrequency_);
 
     // check for consolidated face-elem bc alg
     get_if_present(y_solution_options, "use_consolidated_face_elem_bc_algorithm", useConsolidatedBcSolverAlg_, useConsolidatedBcSolverAlg_);
