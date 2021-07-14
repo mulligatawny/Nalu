@@ -52,6 +52,7 @@ public:
   GenericFieldType *filteredStress_;
   GenericFieldType *filteredVelocity_;
   GenericFieldType *reynoldsStress_;
+//  VectorFieldType *coordinatesDup_;
 
   // peclet function specifics
   PecletFunction<double>* pecletFunction_;

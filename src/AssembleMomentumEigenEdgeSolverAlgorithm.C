@@ -83,6 +83,10 @@ AssembleMomentumEigenEdgeSolverAlgorithm::AssembleMomentumEigenEdgeSolverAlgorit
   // get Reynolds stress
   reynoldsStress_ = meta_data.get_field<GenericFieldType>(stk::topology::NODE_RANK, "reynolds_stress");
 
+  // get coordinates (again) for channel DNS fit
+  //coordinatesDup_ = meta_data.get_field<VectorFieldType>(stk::topology::NODE_RANK, "coordinates");
+
+
   // create the peclet blending function
   pecletFunction_ = eqSystem->create_peclet_function<double>(velocity_->name());
 
@@ -323,7 +327,11 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
 
       const double * rStressL = stk::mesh::field_data(*reynoldsStress_, nodeL);
       const double * rStressR = stk::mesh::field_data(*reynoldsStress_, nodeR);
+/*
+      const double * coordDupL = stk::mesh::field_data(*coordinatesDup_, nodeL);
+      const double * coordDupR = stk::mesh::field_data(*coordinatesDup_, nodeR);
 
+*/
       // copy in extrapolated values
       for ( int i = 0; i < nDim; ++i ) {
         // extrapolated du
@@ -336,7 +344,14 @@ AssembleMomentumEigenEdgeSolverAlgorithm::execute()
           p_duR[i] += dxj*dudxR[offSet+j];
         }
       }
+/*
+      // TEST IF CHANNEL VERTICAL BOUNDS ARE BETWEEN 0 AND 1
+      // REMOVE SOON AFTER TESTING
+      double ycoord = 0.5*(coordDupL[1] + coordDupR[1]);
 
+      NaluEnv::self().naluOutputP0() << ycoord << coeff_kk_ << std::endl;
+
+*/
       // compute geometry
       double axdx = 0.0;
       double asq = 0.0;
